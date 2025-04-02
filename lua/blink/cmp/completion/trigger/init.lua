@@ -250,23 +250,41 @@ function trigger.show(opts)
     initial_trigger_character = nil
   end
 
-  trigger.context = context.new({
-    id = trigger.current_context_id,
-    providers = providers,
-    initial_trigger_kind = initial_trigger_kind,
-    initial_trigger_character = initial_trigger_character,
-    trigger_kind = opts.trigger_kind,
-    trigger_character = opts.trigger_character,
-    initial_selected_item_idx = opts.initial_selected_item_idx,
-  })
+  local function actual_show()
+    trigger.context = context.new({
+      id = trigger.current_context_id,
+      providers = providers,
+      initial_trigger_kind = initial_trigger_kind,
+      initial_trigger_character = initial_trigger_character,
+      trigger_kind = opts.trigger_kind,
+      trigger_character = opts.trigger_character,
+      initial_selected_item_idx = opts.initial_selected_item_idx,
+    })
 
-  if opts.send_upstream ~= false then trigger.show_emitter:emit({ context = trigger.context }) end
+    if opts.send_upstream ~= false then trigger.show_emitter:emit({ context = trigger.context }) end
+  end
+
+  if opts.trigger_kind == 'keyword' then
+    trigger.timer = trigger.timer or vim.uv.new_timer()
+    local timer = trigger.timer
+    timer:stop()
+    timer:start(delay_ms or 1000, 0, function()
+      timer:stop()
+      vim.schedule(function()
+        -- Only run in insert mode.
+        if vim.api.nvim_get_mode()['mode'] == 'i' then actual_show() end
+      end)
+    end)
+  else
+    actual_show()
+  end
+
   return trigger.context
 end
 
 function trigger.hide()
   if not trigger.context then return end
-
+  if trigger.timer then trigger.timer:stop() end
   trigger.context = nil
   trigger.hide_emitter:emit()
 end
